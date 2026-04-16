@@ -45,6 +45,39 @@ namespace llvm {
 extern cl::opt<bool> ProfcheckDisableMetadataFixes;
 }
 
+
+
+
+
+// Match: xor(x, lshr(ashr(x, 31), 1))
+static Value *matchSignMaskXor(Value *V) {
+  Value *X, *Mask;
+
+  // Case 1: xor(X, Mask)
+  if (match(V, m_Xor(m_Value(X), m_Value(Mask)))) {
+    if (match(Mask,
+              m_LShr(
+                m_AShr(m_Specific(X), m_SpecificInt(31)),
+                m_SpecificInt(1))))
+      return X;
+  }
+
+  // Case 2: xor(Mask, X)
+  if (match(V, m_Xor(m_Value(Mask), m_Value(X)))) {
+    if (match(Mask,
+              m_LShr(
+                m_AShr(m_Specific(X), m_SpecificInt(31)),
+                m_SpecificInt(1))))
+      return X;
+  }
+
+  return nullptr;
+}
+
+
+
+
+
 /// Compute Result = In1+In2, returning true if the result overflowed for this
 /// type.
 static bool addWithOverflow(APInt &Result, const APInt &In1, const APInt &In2,
@@ -5969,6 +6002,19 @@ static Instruction *foldICmpEqualityWithOffset(ICmpInst &I,
                                                const SimplifyQuery &SQ) {
   assert(I.isEquality() && "Expected an equality icmp");
   Value *Op0 = I.getOperand(0), *Op1 = I.getOperand(1);
+   
+
+  // === NEW XOR SIGN-MASK OPTIMIZATION ===
+Value *X0 = matchSignMaskXor(Op0);
+Value *X1 = matchSignMaskXor(Op1);
+
+if (X0 && X1 && X0->getType() == X1->getType()) {
+  return new ICmpInst(I.getPredicate(), X0, X1);
+}
+// === END ===
+
+
+
   if (!Op0->getType()->isIntOrIntVectorTy())
     return nullptr;
 
@@ -6302,6 +6348,13 @@ Instruction *InstCombinerImpl::foldICmpEquality(ICmpInst &I) {
 Instruction *InstCombinerImpl::foldICmpWithTrunc(ICmpInst &ICmp) {
   ICmpInst::Predicate Pred = ICmp.getPredicate();
   Value *Op0 = ICmp.getOperand(0), *Op1 = ICmp.getOperand(1);
+   
+
+  
+
+
+
+
 
   // Try to canonicalize trunc + compare-to-constant into a mask + cmp.
   // The trunc masks high bits while the compare may effectively mask low bits.
