@@ -50,7 +50,7 @@ extern cl::opt<bool> ProfcheckDisableMetadataFixes;
 
 
 // Match: xor(x, lshr(ashr(x, 31), 1))
-static Value *matchSignMaskXor(Value *V) {
+static Value *matchXor(Value *V) {
   Value *X, *Mask;
 
   // Case 1: xor(X, Mask)
@@ -6005,8 +6005,8 @@ static Instruction *foldICmpEqualityWithOffset(ICmpInst &I,
    
 
   // === NEW XOR SIGN-MASK OPTIMIZATION ===
-Value *X0 = matchSignMaskXor(Op0);
-Value *X1 = matchSignMaskXor(Op1);
+Value *X0 = matchXor(Op0);
+Value *X1 = matchXor(Op1);
 
 if (X0 && X1 && X0->getType() == X1->getType()) {
   return new ICmpInst(I.getPredicate(), X0, X1);
