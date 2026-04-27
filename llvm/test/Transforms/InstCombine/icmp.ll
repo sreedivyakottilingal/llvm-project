@@ -6238,3 +6238,54 @@ entry:
   %cmp = icmp ult i8 %p0, %p1
   ret i1 %cmp
 }
+
+
+define i1 @icmp_signmask_fold(i32 %a, i32 %b) {
+; CHECK-LABEL: @icmp_signmask_fold(
+; CHECK: icmp eq i32 %a, %b
+
+  %a1 = ashr i32 %a, 31
+  %a2 = lshr i32 %a1, 1
+  %fa = xor i32 %a, %a2
+
+  %b1 = ashr i32 %b, 31
+  %b2 = lshr i32 %b1, 1
+  %fb = xor i32 %b, %b2
+
+  %cmp = icmp eq i32 %fa, %fb
+  ret i1 %cmp
+}
+
+;negative test: variable shift (poison risk, must NOT fold)
+define i1 @icmp_signmask_no_fold_var_shift(i32 %a, i32 %b, i32 %s) {
+; CHECK-LABEL: @icmp_signmask_no_fold_var_shift(
+; CHECK: icmp eq i32 %fa, %fb
+
+  %a1 = ashr i32 %a, %s
+  %a2 = lshr i32 %a1, 1
+  %fa = xor i32 %a, %a2
+
+  %b1 = ashr i32 %b, %s
+  %b2 = lshr i32 %b1, 1
+  %fb = xor i32 %b, %b2
+
+  %cmp = icmp eq i32 %fa, %fb
+  ret i1 %cmp
+}
+
+; negative-test: wrong shift (not BW-1, must NOT fold) ===
+define i1 @icmp_signmask_no_fold_wrong_shift(i32 %a, i32 %b) {
+; CHECK-LABEL: @icmp_signmask_no_fold_wrong_shift(
+; CHECK: icmp eq i32 %fa, %fb
+
+  %a1 = ashr i32 %a, 30   ; incorrect shift
+  %a2 = lshr i32 %a1, 1
+  %fa = xor i32 %a, %a2
+
+  %b1 = ashr i32 %b, 30
+  %b2 = lshr i32 %b1, 1
+  %fb = xor i32 %b, %b2
+
+  %cmp = icmp eq i32 %fa, %fb
+  ret i1 %cmp
+}

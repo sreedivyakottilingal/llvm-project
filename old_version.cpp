@@ -46,45 +46,35 @@ extern cl::opt<bool> ProfcheckDisableMetadataFixes;
 }
 
 
-//===----------------------------------------------------------------------===//
-// Pattern matching 
-//===----------------------------------------------------------------------===//
 
-// Match: xor(X, lshr(ashr(X, BW-1), 1))
-// This is the sign-magnitude encoding transform, which is injective.
-// Works for any integer bitwidth.
+
+
+// Match: xor(x, lshr(ashr(x, 31), 1))
 static Value *matchSignMaskXor(Value *V) {
   Value *X, *Mask;
-  Value *AShrVal;
-  const APInt *ShiftAmt1, *ShiftAmt2;
 
-  // Case 1: xor(X, lshr(ashr(X, BW-1), 1))
+  // Case 1: xor(X, Mask)
   if (match(V, m_Xor(m_Value(X), m_Value(Mask)))) {
-    if (match(Mask, m_LShr(m_Value(AShrVal), m_APInt(ShiftAmt2))) &&
-        *ShiftAmt2 == 1 &&
-        match(AShrVal, m_AShr(m_Specific(X), m_APInt(ShiftAmt1)))) {
-      unsigned BitWidth = X->getType()->getScalarSizeInBits();
-      if (*ShiftAmt1 == BitWidth - 1)
-        return X;
-    }
+    if (match(Mask,
+              m_LShr(
+                m_AShr(m_Specific(X), m_SpecificInt(31)),
+                m_SpecificInt(1))))
+      return X;
   }
 
-  // Case 2: xor(lshr(ashr(X, BW-1), 1), X)
+  // Case 2: xor(Mask, X)
   if (match(V, m_Xor(m_Value(Mask), m_Value(X)))) {
-    if (match(Mask, m_LShr(m_Value(AShrVal), m_APInt(ShiftAmt2))) &&
-        *ShiftAmt2 == 1 &&
-        match(AShrVal, m_AShr(m_Specific(X), m_APInt(ShiftAmt1)))) {
-      unsigned BitWidth = X->getType()->getScalarSizeInBits();
-      if (*ShiftAmt1 == BitWidth - 1)
-        return X;
-    }
+    if (match(Mask,
+              m_LShr(
+                m_AShr(m_Specific(X), m_SpecificInt(31)),
+                m_SpecificInt(1))))
+      return X;
   }
 
   return nullptr;
 }
 
 
-//==================================================
 
 
 
@@ -6014,29 +6004,14 @@ static Instruction *foldICmpEqualityWithOffset(ICmpInst &I,
   Value *Op0 = I.getOperand(0), *Op1 = I.getOperand(1);
    
 
-  // === NEW PATCH ===
+  // === NEW XOR SIGN-MASK OPTIMIZATION ===
+Value *X0 = matchSignMaskXor(Op0);
+Value *X1 = matchSignMaskXor(Op1);
 
-
-
-
-
-if (!Op0->getType()->isIntOrIntVectorTy())
-    return nullptr;
-
-  // Avoid scalable vectors (safety)
-  if (Op0->getType()->isScalableTy())
-    return nullptr;
-
-  Value *X = matchSignMaskXor(Op0);
-  Value *Y = matchSignMaskXor(Op1);
-
-  if (X && Y && X->getType() == Y->getType())
-    return new ICmpInst(I.getPredicate(), X, Y);
-
-
-   // === END ===
-
-
+if (X0 && X1 && X0->getType() == X1->getType()) {
+  return new ICmpInst(I.getPredicate(), X0, X1);
+}
+// === END ===
 
 
 
