@@ -636,7 +636,7 @@ Instruction *InstCombinerImpl::foldPowiReassoc(BinaryOperator &I) {
                            Value *Y, Value *Z) {
     InstCombiner::BuilderTy &Builder = IC.Builder;
     Value *YZ = Builder.CreateNSWAdd(Y, Z);
-    Instruction *NewPow = Builder.CreateIntrinsic(
+    Value *NewPow = Builder.CreateIntrinsic(
         Intrinsic::powi, {X->getType(), YZ->getType()}, {X, YZ}, &I);
 
     return NewPow;
@@ -654,7 +654,7 @@ Instruction *InstCombinerImpl::foldPowiReassoc(BinaryOperator &I) {
                          m_Deferred(X)))) {
     Constant *One = ConstantInt::get(Y->getType(), 1);
     if (willNotOverflowSignedAdd(Y, One, I)) {
-      Instruction *NewPow = createPowiExpr(I, *this, X, Y, One);
+      Value *NewPow = createPowiExpr(I, *this, X, Y, One);
       return replaceInstUsesWith(I, NewPow);
     }
   }
@@ -668,7 +668,7 @@ Instruction *InstCombinerImpl::foldPowiReassoc(BinaryOperator &I) {
       match(Op1, m_AllowReassoc(m_Intrinsic<Intrinsic::powi>(m_Specific(X),
                                                              m_Value(Z)))) &&
       Y->getType() == Z->getType() && willNotOverflowSignedAdd(Y, Z, I)) {
-    Instruction *NewPow = createPowiExpr(I, *this, X, Y, Z);
+    Value *NewPow = createPowiExpr(I, *this, X, Y, Z);
     return replaceInstUsesWith(I, NewPow);
   }
 
@@ -681,7 +681,7 @@ Instruction *InstCombinerImpl::foldPowiReassoc(BinaryOperator &I) {
                        m_Specific(Op1), m_Value(Y))))) &&
         willNotOverflowSignedSub(Y, ConstantInt::get(Y->getType(), 1), I)) {
       Constant *NegOne = ConstantInt::getAllOnesValue(Y->getType());
-      Instruction *NewPow = createPowiExpr(I, *this, Op1, Y, NegOne);
+      Value *NewPow = createPowiExpr(I, *this, Op1, Y, NegOne);
       return replaceInstUsesWith(I, NewPow);
     }
 
@@ -1418,6 +1418,23 @@ Instruction *InstCombinerImpl::commonIDivTransforms(BinaryOperator &I) {
       return BinaryOperator::CreateNUWAdd(X,
                                           ConstantInt::get(Ty, C1->udiv(*C2)));
     }
+    Value *MulOp;
+    if (IsSigned && I.isExact() &&
+        match(Op0, m_Add(m_Value(MulOp), m_APInt(C1))) &&
+        match(MulOp, m_Mul(m_Value(X), m_SpecificInt(*C2))) &&
+        isMultiple(*C1, *C2, Quotient, IsSigned)) {
+      auto *MulOBO = cast<OverflowingBinaryOperator>(MulOp);
+      bool HasNSW = MulOBO->hasNoSignedWrap();
+      bool NUWAndNonNeg =
+          MulOBO->hasNoUnsignedWrap() && isKnownNonNegative(X, SQ);
+      if (HasNSW || NUWAndNonNeg) {
+        bool CanNSW = HasNSW && C2->abs().ugt(1);
+        auto *NewAdd =
+            BinaryOperator::CreateAdd(X, ConstantInt::get(Ty, Quotient));
+        NewAdd->setHasNoSignedWrap(CanNSW);
+        return NewAdd;
+      }
+    }
 
     if (!C2->isZero()) // avoid X udiv 0
       if (Instruction *FoldedDiv = foldBinOpIntoSelectOrPhi(I))
@@ -1927,7 +1944,7 @@ Instruction *InstCombinerImpl::foldFDivConstantDivisor(BinaryOperator &I) {
       (match(I.getOperand(1), m_PosZeroFP()) ||
        (I.hasNoSignedZeros() && match(I.getOperand(1), m_AnyZeroFP())))) {
     IRBuilder<> B(&I);
-    CallInst *CopySign = B.CreateIntrinsic(
+    Value *CopySign = B.CreateIntrinsic(
         Intrinsic::copysign, {C->getType()},
         {ConstantFP::getInfinity(I.getType()), I.getOperand(0)}, &I);
     CopySign->takeName(&I);
