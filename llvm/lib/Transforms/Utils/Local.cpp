@@ -3804,7 +3804,20 @@ bool llvm::recognizeBSwapOrBitReverseIdiom(
   ArrayRef<int8_t> BitProvenance = Res->Provenance;
   assert(all_of(BitProvenance,
                 [](int8_t I) { return I == BitPart::Unset || 0 <= I; }) &&
-         "Illegal bit provenance index");
+         "Illegal bit provenance index");         
+unsigned MovedBits = 0;
+unsigned TotalLiveBits = 0;
+for (unsigned i = 0; i < BitProvenance.size(); ++i) {
+  int8_t Src = BitProvenance[i];
+  if (Src == BitPart::Unset)
+    continue;
+  TotalLiveBits++;
+  if (Src != (int8_t)i)
+    MovedBits++;
+}
+// Block if fewer than 4 bits moved (catches single bit-pair swaps)
+if (TotalLiveBits > 0 && MovedBits <= 2)
+  return false;
 
   // If the upper bits are zero, then attempt to perform as a truncated op.
   Type *DemandedTy = ITy;
