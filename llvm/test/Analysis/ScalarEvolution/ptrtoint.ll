@@ -693,9 +693,9 @@ define i64 @same_base_lt_204070(ptr %s, i64 %len, ptr %tbl) {
 ; X64-NEXT:    %matches = phi i64 [ %matches.next, %loop ], [ 0, %entry ]
 ; X64-NEXT:    --> %matches U: full-set S: full-set Exits: <<Unknown>> LoopDispositions: { %loop: Variant }
 ; X64-NEXT:    %iv = phi ptr [ %iv.next, %loop ], [ %s, %entry ]
-; X64-NEXT:    --> {%s,+,1}<nuw><%loop> U: full-set S: full-set Exits: (-1 + (-1 * (ptrtoint ptr %s to i64)) + ((1 + (ptrtoint ptr %s to i64)) umax ((ptrtoint ptr %s to i64) + %len)) + %s) LoopDispositions: { %loop: Computable }
+; X64-NEXT:    --> {%s,+,1}<nuw><%loop> U: full-set S: full-set Exits: (-1 + %len + %s) LoopDispositions: { %loop: Computable }
 ; X64-NEXT:    %iv.next = getelementptr inbounds nuw i8, ptr %iv, i64 1
-; X64-NEXT:    --> {(1 + %s),+,1}<nuw><%loop> U: full-set S: full-set Exits: ((-1 * (ptrtoint ptr %s to i64)) + ((1 + (ptrtoint ptr %s to i64)) umax ((ptrtoint ptr %s to i64) + %len)) + %s) LoopDispositions: { %loop: Computable }
+; X64-NEXT:    --> {(1 + %s),+,1}<nuw><%loop> U: full-set S: full-set Exits: (%len + %s) LoopDispositions: { %loop: Computable }
 ; X64-NEXT:    %ch = load i8, ptr %iv, align 1
 ; X64-NEXT:    --> %ch U: full-set S: full-set Exits: <<Unknown>> LoopDispositions: { %loop: Variant }
 ; X64-NEXT:    %chz = zext i8 %ch to i64
@@ -711,9 +711,9 @@ define i64 @same_base_lt_204070(ptr %s, i64 %len, ptr %tbl) {
 ; X64-NEXT:    %result = phi i64 [ 0, %entry ], [ %matches.next, %loop ]
 ; X64-NEXT:    --> %result U: full-set S: full-set
 ; X64-NEXT:  Determining loop execution counts for: @same_base_lt_204070
-; X64-NEXT:  Loop %loop: backedge-taken count is (-1 + (-1 * (ptrtoint ptr %s to i64)) + ((1 + (ptrtoint ptr %s to i64)) umax ((ptrtoint ptr %s to i64) + %len)))
+; X64-NEXT:  Loop %loop: backedge-taken count is (-1 + %len)
 ; X64-NEXT:  Loop %loop: constant max backedge-taken count is i64 -1
-; X64-NEXT:  Loop %loop: symbolic max backedge-taken count is (-1 + (-1 * (ptrtoint ptr %s to i64)) + ((1 + (ptrtoint ptr %s to i64)) umax ((ptrtoint ptr %s to i64) + %len)))
+; X64-NEXT:  Loop %loop: symbolic max backedge-taken count is (-1 + %len)
 ; X64-NEXT:  Loop %loop: Trip multiple is 1
 ;
 ; X32-LABEL: 'same_base_lt_204070'
@@ -723,9 +723,9 @@ define i64 @same_base_lt_204070(ptr %s, i64 %len, ptr %tbl) {
 ; X32-NEXT:    %matches = phi i64 [ %matches.next, %loop ], [ 0, %entry ]
 ; X32-NEXT:    --> %matches U: full-set S: full-set Exits: <<Unknown>> LoopDispositions: { %loop: Variant }
 ; X32-NEXT:    %iv = phi ptr [ %iv.next, %loop ], [ %s, %entry ]
-; X32-NEXT:    --> {%s,+,1}<nuw><%loop> U: full-set S: full-set Exits: (-1 + (-1 * (ptrtoint ptr %s to i32)) + ((1 + (ptrtoint ptr %s to i32)) umax ((trunc i64 %len to i32) + (ptrtoint ptr %s to i32))) + %s) LoopDispositions: { %loop: Computable }
+; X32-NEXT:    --> {%s,+,1}<nuw><%loop> U: full-set S: full-set Exits: (-1 + (trunc i64 %len to i32) + %s) LoopDispositions: { %loop: Computable }
 ; X32-NEXT:    %iv.next = getelementptr inbounds nuw i8, ptr %iv, i64 1
-; X32-NEXT:    --> {(1 + %s),+,1}<nuw><%loop> U: full-set S: full-set Exits: ((-1 * (ptrtoint ptr %s to i32)) + ((1 + (ptrtoint ptr %s to i32)) umax ((trunc i64 %len to i32) + (ptrtoint ptr %s to i32))) + %s) LoopDispositions: { %loop: Computable }
+; X32-NEXT:    --> {(1 + %s),+,1}<nuw><%loop> U: full-set S: full-set Exits: ((trunc i64 %len to i32) + %s) LoopDispositions: { %loop: Computable }
 ; X32-NEXT:    %ch = load i8, ptr %iv, align 1
 ; X32-NEXT:    --> %ch U: full-set S: full-set Exits: <<Unknown>> LoopDispositions: { %loop: Variant }
 ; X32-NEXT:    %chz = zext i8 %ch to i64
@@ -741,9 +741,9 @@ define i64 @same_base_lt_204070(ptr %s, i64 %len, ptr %tbl) {
 ; X32-NEXT:    %result = phi i64 [ 0, %entry ], [ %matches.next, %loop ]
 ; X32-NEXT:    --> %result U: full-set S: full-set
 ; X32-NEXT:  Determining loop execution counts for: @same_base_lt_204070
-; X32-NEXT:  Loop %loop: backedge-taken count is (-1 + (-1 * (ptrtoint ptr %s to i32)) + ((1 + (ptrtoint ptr %s to i32)) umax ((trunc i64 %len to i32) + (ptrtoint ptr %s to i32))))
+; X32-NEXT:  Loop %loop: backedge-taken count is (-1 + (trunc i64 %len to i32))
 ; X32-NEXT:  Loop %loop: constant max backedge-taken count is i32 -1
-; X32-NEXT:  Loop %loop: symbolic max backedge-taken count is (-1 + (-1 * (ptrtoint ptr %s to i32)) + ((1 + (ptrtoint ptr %s to i32)) umax ((trunc i64 %len to i32) + (ptrtoint ptr %s to i32))))
+; X32-NEXT:  Loop %loop: symbolic max backedge-taken count is (-1 + (trunc i64 %len to i32))
 ; X32-NEXT:  Loop %loop: Trip multiple is 1
 ;
 entry:
