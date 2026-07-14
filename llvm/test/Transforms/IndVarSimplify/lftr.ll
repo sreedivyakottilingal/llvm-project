@@ -724,3 +724,27 @@ x:                                                ; preds = %x, %0
 BB:                                               ; preds = %x
   ret void
 }
+
+;trunc becomes unwanted "and" as optimizatio of "trunc+icmp" by instcombine 
+define dso_local void @test_widen_exit_cnt(i32 noundef %start, ptr noundef %a) {
+  %3 = icmp slt i32 %start, 56
+  br i1 %3, label %4, label %6
+
+4:
+  %5 = sext i32 %start to i64
+  br label %7
+
+6:
+  ret void
+
+7:
+  %8 = phi i64 [ %5, %4 ], [ %12, %7 ]
+  %9 = getelementptr inbounds i32, ptr %a, i64 %8
+  %10 = load i32, ptr %9, align 4
+  %11 = add nsw i32 %10, 1
+  store i32 %11, ptr %9, align 4
+  %12 = add nsw i64 %8, 1
+  %13 = trunc i64 %12 to i32
+  %14 = icmp eq i32 %13, 56
+  br i1 %14, label %6, label %7
+}

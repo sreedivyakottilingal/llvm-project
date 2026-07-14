@@ -1146,9 +1146,36 @@ linearFunctionTestReplace(Loop *L, BasicBlock *ExitingBB,
     // reasoning as from SimplifyIndvar::eliminateTrunc to see if we can extend
     // the other side of the comparison instead.  We still evaluate the limit
     // in the narrower bitwidth, we just prefer a zext/sext outside the loop to
-    // a truncate within in.
+    //a truncate within in.
     bool Extended = false;
     const SCEV *IV = SE->getSCEV(CmpIndVar);
+
+
+    const SCEV *MaxTripCount = SE->getConstantMaxBackedgeTakenCount(L);
+     if (!isa<SCEVCouldNotCompute>(MaxTripCount)) {
+       const SCEVAddRecExpr *AR = dyn_cast<SCEVAddRecExpr>(IV);
+       if (AR && AR->isAffine()) {
+         const SCEV *Start = AR->getStart();
+         const SCEV *Step = AR->getStepRecurrence(*SE);
+         
+         // Calculate worst-case final value: Start + (Step * MaxTripCount)
+         const SCEV *TotalRange = SE->getMulExpr(Step, MaxTripCount);
+         const SCEV *MaxEndVal = SE->getAddExpr(Start, TotalRange);
+         
+         // Determine the safe ranges for the narrower type based on comparison signedness
+         APInt MinAllowed = ICmpInst::isSigned(P) ? APInt::getSignedMinValue(ExitCntSize).sext(CmpIndVarSize)
+                                                  : APInt::getMinValue(ExitCntSize).zext(CmpIndVarSize);
+         APInt MaxAllowed = ICmpInst::isSigned(P) ? APInt::getSignedMaxValue(ExitCntSize).sext(CmpIndVarSize)
+                                                  : APInt::getMaxValue(ExitCntSize).zext(CmpIndVarSize);
+         
+         if (SE->isKnownPredicate(ICmpInst::ICMP_SGE, Start, SE->getSCEV(ConstantInt::get(CmpIndVar->getType(), MinAllowed))) &&
+             SE->isKnownPredicate(ICmpInst::ICMP_SLE, MaxEndVal, SE->getSCEV(ConstantInt::get(CmpIndVar->getType(), MaxAllowed)))) {
+           Extended = true;
+         }
+       }
+     }
+
+     
     const SCEV *TruncatedIV = SE->getTruncateExpr(IV, ExitCnt->getType());
     const SCEV *ZExtTrunc =
       SE->getZeroExtendExpr(TruncatedIV, CmpIndVar->getType());
@@ -1166,14 +1193,24 @@ linearFunctionTestReplace(Loop *L, BasicBlock *ExitingBB,
                                      "wide.trip.count");
       }
     }
-
+    
     if (Extended) {
-      bool Discard;
-      L->makeLoopInvariant(ExitCnt, Discard);
-    } else
-      CmpIndVar = Builder.CreateTrunc(CmpIndVar, ExitCnt->getType(),
-                                      "lftr.wideiv");
+       Type *WideTy = CmpIndVar->getType();
+       if (WideTy != ExitCnt->getType()) {
+         if (ICmpInst::isSigned(P))
+           ExitCnt = Builder.CreateSExt(ExitCnt, WideTy, "exitcnt.wide");
+         else
+           ExitCnt = Builder.CreateZExt(ExitCnt, WideTy, "exitcnt.wide");
+       }
+       bool Discard;
+       L->makeLoopInvariant(ExitCnt, Discard);
+     } else {
+       CmpIndVar = Builder.CreateTrunc(CmpIndVar, ExitCnt->getType(),
+                                       "lftr.wideiv");
+     }
+   
   }
+  
   LLVM_DEBUG(dbgs() << "INDVARS: Rewriting loop exit condition to:\n"
                     << "      LHS:" << *CmpIndVar << '\n'
                     << "       op:\t" << (P == ICmpInst::ICMP_NE ? "!=" : "==")
